@@ -123,6 +123,11 @@ beforeEach(() => {
 describe('App Component', () => {
   let consoleErrorSpy;
 
+  const readCountChipValue = (label) => {
+    const rawText = screen.getByText(new RegExp(`^${label}:`)).textContent || '';
+    return Number(rawText.replace(/[^0-9]/g, ''));
+  };
+
   beforeEach(() => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -137,6 +142,10 @@ describe('App Component', () => {
     });
     expect(screen.getByText('TaskFlow 2026')).toBeInTheDocument();
     expect(screen.getByText(/Manage your priorities/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Task' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Task title')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort by')).toBeInTheDocument();
+    expect(screen.getByLabelText('Order')).toBeInTheDocument();
   });
 
   test('loads and displays tasks', async () => {
@@ -144,10 +153,17 @@ describe('App Component', () => {
       render(<App />);
     });
 
+    expect(screen.getByText('Loading tasks...')).toBeInTheDocument();
+
     await waitFor(() => {
       expect(screen.getByText('Test Task 1')).toBeInTheDocument();
       expect(screen.getByText('Test Task 2')).toBeInTheDocument();
     });
+
+    expect(screen.queryByText('Loading tasks...')).not.toBeInTheDocument();
+    expect(screen.getByText('Created: Jul 21, 2026, 8:00 AM')).toBeInTheDocument();
+    expect(screen.getByText('Due: 2026-08-01')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mark Test Task 2 complete')).toBeChecked();
   });
 
   test('adds a new task', async () => {
@@ -161,9 +177,13 @@ describe('App Component', () => {
       expect(screen.queryByText('Loading tasks...')).not.toBeInTheDocument();
     });
 
+    const beforeTotal = readCountChipValue('Total');
+
     const input = screen.getByLabelText('Task title');
+    const dueDateInput = screen.getByLabelText('Due date');
     await act(async () => {
       await user.type(input, 'New Test Task');
+      await user.type(dueDateInput, '2026-10-10');
     });
 
     const submitButton = screen.getByRole('button', { name: 'Add Task' });
@@ -174,6 +194,11 @@ describe('App Component', () => {
     await waitFor(() => {
       expect(screen.getByText('New Test Task')).toBeInTheDocument();
     });
+
+    expect(screen.getByText('Due: 2026-10-10')).toBeInTheDocument();
+    expect(input).toHaveValue('');
+    expect(dueDateInput).toHaveValue('');
+    expect(readCountChipValue('Total')).toBe(beforeTotal + 1);
   });
 
   test('toggles completion status', async () => {
@@ -187,12 +212,15 @@ describe('App Component', () => {
       expect(screen.getByText('Test Task 1')).toBeInTheDocument();
     });
 
+    const beforeCompleted = readCountChipValue('Completed');
+
     const checkbox = screen.getByLabelText('Mark Test Task 1 complete');
     await act(async () => {
       await user.click(checkbox);
     });
 
     expect(checkbox).toBeChecked();
+    expect(readCountChipValue('Completed')).toBe(beforeCompleted + 1);
   });
 
   test('handles API error', async () => {
@@ -210,6 +238,9 @@ describe('App Component', () => {
       expect(screen.getByText(/Failed to fetch todos/)).toBeInTheDocument();
     });
 
+    expect(screen.queryByText('Loading tasks...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Test Task 1')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to fetch todos');
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
@@ -227,5 +258,9 @@ describe('App Component', () => {
     await waitFor(() => {
       expect(screen.getByText('No tasks yet. Add your first one.')).toBeInTheDocument();
     });
+
+    expect(screen.queryByText('Test Task 1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Test Task 2')).not.toBeInTheDocument();
+    expect(readCountChipValue('Total')).toBe(0);
   });
 });
