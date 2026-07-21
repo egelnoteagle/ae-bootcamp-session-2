@@ -121,6 +121,16 @@ beforeEach(() => {
 });
 
 describe('App Component', () => {
+  let consoleErrorSpy;
+
+  beforeEach(() => {
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
   test('renders the header', async () => {
     await act(async () => {
       render(<App />);
@@ -199,6 +209,8 @@ describe('App Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to fetch todos/)).toBeInTheDocument();
     });
+
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   test('shows empty state when no tasks', async () => {

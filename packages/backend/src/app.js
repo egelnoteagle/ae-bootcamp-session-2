@@ -3,13 +3,17 @@ const cors = require('cors');
 const morgan = require('morgan');
 const Database = require('better-sqlite3');
 
+const isTestEnv = process.env.NODE_ENV === 'test';
+
 // Initialize express app
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(morgan('dev'));
+if (!isTestEnv) {
+  app.use(morgan('dev'));
+}
 
 // Initialize in-memory SQLite database
 const db = new Database(':memory:');
@@ -68,7 +72,9 @@ initialTodos.forEach((todoTitle) => {
   insertStmt.run(todoTitle, null, 0);
 });
 
-console.log('In-memory database initialized with sample data');
+if (!isTestEnv) {
+  console.log('In-memory database initialized with sample data');
+}
 
 // Health check endpoint
 app.get('/', (req, res) => {
