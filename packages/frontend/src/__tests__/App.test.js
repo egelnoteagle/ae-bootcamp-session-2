@@ -5,132 +5,215 @@ import { rest } from 'msw';
 import { setupServer } from 'msw/node';
 import App from '../App';
 
+let todos = [];
+
 // Mock server to intercept API requests
 const server = setupServer(
-  // GET /api/items handler
-  rest.get('/api/items', (req, res, ctx) => {
-    return res(
-      ctx.status(200),
-      ctx.json([
-        { id: 1, name: 'Test Item 1', created_at: '2023-01-01T00:00:00.000Z' },
-        { id: 2, name: 'Test Item 2', created_at: '2023-01-02T00:00:00.000Z' },
-      ])
-    );
+  rest.get('/api/todos', (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(todos));
   }),
-  
-  // POST /api/items handler
-  rest.post('/api/items', (req, res, ctx) => {
-    const { name } = req.body;
-    
-    if (!name || name.trim() === '') {
-      return res(
-        ctx.status(400),
-        ctx.json({ error: 'Item name is required' })
-      );
+
+  rest.post('/api/todos', async (req, res, ctx) => {
+    const body = await req.json();
+
+    if (!body.title || body.title.trim() === '') {
+      return res(ctx.status(400), ctx.json({ error: 'Todo title is required' }));
     }
-    
-    return res(
-      ctx.status(201),
-      ctx.json({
-        id: 3,
-        name,
-        created_at: new Date().toISOString(),
-      })
-    );
+
+    const createdTodo = {
+      id: Date.now(),
+      title: body.title,
+      dueDate: body.dueDate || null,
+      completed: false,
+      createdAt: '2026-07-21T08:00:00.000Z',
+      createdAtHuman: 'Jul 21, 2026, 8:00 AM',
+      updatedAt: '2026-07-21T08:00:00.000Z',
+    };
+
+    todos = [createdTodo, ...todos];
+    return res(ctx.status(201), ctx.json(createdTodo));
+  }),
+
+  rest.patch('/api/todos/:id/complete', async (req, res, ctx) => {
+    const body = await req.json();
+    const id = Number(req.params.id);
+    const index = todos.findIndex((todo) => todo.id === id);
+    if (index === -1) {
+      return res(ctx.status(404), ctx.json({ error: 'Todo not found' }));
+    }
+
+    todos[index] = { ...todos[index], completed: body.completed };
+    return res(ctx.status(200), ctx.json(todos[index]));
+  }),
+
+  rest.delete('/api/todos/:id', (req, res, ctx) => {
+    const id = Number(req.params.id);
+    todos = todos.filter((todo) => todo.id !== id);
+    return res(ctx.status(200), ctx.json({ message: 'Todo deleted successfully', id }));
+  }),
+
+  rest.put('/api/todos/:id', async (req, res, ctx) => {
+    const body = await req.json();
+    const id = Number(req.params.id);
+    const index = todos.findIndex((todo) => todo.id === id);
+    if (index === -1) {
+      return res(ctx.status(404), ctx.json({ error: 'Todo not found' }));
+    }
+
+    todos[index] = {
+      ...todos[index],
+      title: body.title,
+      dueDate: body.dueDate,
+      completed: body.completed,
+    };
+    return res(ctx.status(200), ctx.json(todos[index]));
   })
 );
 
 // Setup and teardown for the mock server
 beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  todos = [
+    {
+      id: 1,
+      title: 'Test Task 1',
+      dueDate: null,
+      completed: false,
+      createdAt: '2026-07-21T08:00:00.000Z',
+      createdAtHuman: 'Jul 21, 2026, 8:00 AM',
+      updatedAt: '2026-07-21T08:00:00.000Z',
+    },
+    {
+      id: 2,
+      title: 'Test Task 2',
+      dueDate: '2026-08-01',
+      completed: true,
+      createdAt: '2026-07-20T08:00:00.000Z',
+      createdAtHuman: 'Jul 20, 2026, 8:00 AM',
+      updatedAt: '2026-07-20T08:00:00.000Z',
+    },
+  ];
+});
 afterAll(() => server.close());
+
+beforeEach(() => {
+  todos = [
+    {
+      id: 1,
+      title: 'Test Task 1',
+      dueDate: null,
+      completed: false,
+      createdAt: '2026-07-21T08:00:00.000Z',
+      createdAtHuman: 'Jul 21, 2026, 8:00 AM',
+      updatedAt: '2026-07-21T08:00:00.000Z',
+    },
+    {
+      id: 2,
+      title: 'Test Task 2',
+      dueDate: '2026-08-01',
+      completed: true,
+      createdAt: '2026-07-20T08:00:00.000Z',
+      createdAtHuman: 'Jul 20, 2026, 8:00 AM',
+      updatedAt: '2026-07-20T08:00:00.000Z',
+    },
+  ];
+});
 
 describe('App Component', () => {
   test('renders the header', async () => {
     await act(async () => {
       render(<App />);
     });
-    expect(screen.getByText('React Frontend with Node Backend')).toBeInTheDocument();
-    expect(screen.getByText('Connected to in-memory database')).toBeInTheDocument();
+    expect(screen.getByText('TaskFlow 2026')).toBeInTheDocument();
+    expect(screen.getByText(/Manage your priorities/i)).toBeInTheDocument();
   });
 
-  test('loads and displays items', async () => {
+  test('loads and displays tasks', async () => {
     await act(async () => {
       render(<App />);
     });
-    
-    // Initially shows loading state
-    expect(screen.getByText('Loading data...')).toBeInTheDocument();
-    
-    // Wait for items to load
+
     await waitFor(() => {
-      expect(screen.getByText('Test Item 1')).toBeInTheDocument();
-      expect(screen.getByText('Test Item 2')).toBeInTheDocument();
+      expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      expect(screen.getByText('Test Task 2')).toBeInTheDocument();
     });
   });
 
-  test('adds a new item', async () => {
+  test('adds a new task', async () => {
     const user = userEvent.setup();
-    
+
     await act(async () => {
       render(<App />);
     });
-    
-    // Wait for items to load
+
     await waitFor(() => {
-      expect(screen.queryByText('Loading data...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading tasks...')).not.toBeInTheDocument();
     });
-    
-    // Fill in the form and submit
-    const input = screen.getByPlaceholderText('Enter item name');
+
+    const input = screen.getByLabelText('Task title');
     await act(async () => {
-      await user.type(input, 'New Test Item');
+      await user.type(input, 'New Test Task');
     });
-    
-    const submitButton = screen.getByText('Add Item');
+
+    const submitButton = screen.getByRole('button', { name: 'Add Task' });
     await act(async () => {
       await user.click(submitButton);
     });
-    
-    // Check that the new item appears
+
     await waitFor(() => {
-      expect(screen.getByText('New Test Item')).toBeInTheDocument();
+      expect(screen.getByText('New Test Task')).toBeInTheDocument();
     });
+  });
+
+  test('toggles completion status', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+    });
+
+    const checkbox = screen.getByLabelText('Mark Test Task 1 complete');
+    await act(async () => {
+      await user.click(checkbox);
+    });
+
+    expect(checkbox).toBeChecked();
   });
 
   test('handles API error', async () => {
-    // Override the default handler to simulate an error
     server.use(
-      rest.get('/api/items', (req, res, ctx) => {
+      rest.get('/api/todos', (req, res, ctx) => {
         return res(ctx.status(500));
       })
     );
-    
+
     await act(async () => {
       render(<App />);
     });
-    
-    // Wait for error message
+
     await waitFor(() => {
-      expect(screen.getByText(/Failed to fetch data/)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to fetch todos/)).toBeInTheDocument();
     });
   });
 
-  test('shows empty state when no items', async () => {
-    // Override the default handler to return empty array
+  test('shows empty state when no tasks', async () => {
     server.use(
-      rest.get('/api/items', (req, res, ctx) => {
+      rest.get('/api/todos', (req, res, ctx) => {
         return res(ctx.status(200), ctx.json([]));
       })
     );
-    
+
     await act(async () => {
       render(<App />);
     });
-    
-    // Wait for empty state message
+
     await waitFor(() => {
-      expect(screen.getByText('No items found. Add some!')).toBeInTheDocument();
+      expect(screen.getByText('No tasks yet. Add your first one.')).toBeInTheDocument();
     });
   });
 });

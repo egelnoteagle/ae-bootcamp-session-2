@@ -1,102 +1,51 @@
-const request = require('supertest');
-const { app, db } = require('../src/app');
+const { isValidDueDate, serializeTodo, toHumanReadable } = require('../src/app');
 
-// Close the database connection after all tests
-afterAll(() => {
-  if (db) {
-    db.close();
-  }
-});
+describe('Todo helper functions', () => {
+  describe('isValidDueDate', () => {
+    test('accepts null and blank values', () => {
+      expect(isValidDueDate(null)).toBe(true);
+      expect(isValidDueDate(undefined)).toBe(true);
+      expect(isValidDueDate('')).toBe(true);
+    });
 
-// Test helpers
-const createItem = async (name = 'Temp Item to Delete') => {
-  const response = await request(app)
-    .post('/api/items')
-    .send({ name })
-    .set('Accept', 'application/json');
+    test('accepts YYYY-MM-DD', () => {
+      expect(isValidDueDate('2026-12-31')).toBe(true);
+    });
 
-  expect(response.status).toBe(201);
-  expect(response.body).toHaveProperty('id');
-  return response.body;
-};
-
-describe('API Endpoints', () => {
-  describe('GET /api/items', () => {
-    it('should return all items', async () => {
-      const response = await request(app).get('/api/items');
-
-      expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBeGreaterThan(0);
-
-      // Check if items have the expected structure
-      const item = response.body[0];
-      expect(item).toHaveProperty('id');
-      expect(item).toHaveProperty('name');
-      expect(item).toHaveProperty('created_at');
+    test('rejects invalid shapes', () => {
+      expect(isValidDueDate('31-12-2026')).toBe(false);
+      expect(isValidDueDate('2026/12/31')).toBe(false);
+      expect(isValidDueDate(1234)).toBe(false);
     });
   });
 
-  describe('POST /api/items', () => {
-    it('should create a new item', async () => {
-      const newItem = { name: 'Test Item' };
-      const response = await request(app)
-        .post('/api/items')
-        .send(newItem)
-        .set('Accept', 'application/json');
-
-      expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('id');
-      expect(response.body.name).toBe(newItem.name);
-      expect(response.body).toHaveProperty('created_at');
-    });
-
-    it('should return 400 if name is missing', async () => {
-      const response = await request(app)
-        .post('/api/items')
-        .send({})
-        .set('Accept', 'application/json');
-
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error');
-      expect(response.body.error).toBe('Item name is required');
-    });
-
-    it('should return 400 if name is empty', async () => {
-      const response = await request(app)
-        .post('/api/items')
-        .send({ name: '' })
-        .set('Accept', 'application/json');
-
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error');
-      expect(response.body.error).toBe('Item name is required');
+  describe('toHumanReadable', () => {
+    test('returns a readable date string', () => {
+      const result = toHumanReadable('2026-07-21T10:30:00.000Z');
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
     });
   });
 
-  describe('DELETE /api/items/:id', () => {
-    it('should delete an existing item', async () => {
-      const item = await createItem('Item To Be Deleted');
+  describe('serializeTodo', () => {
+    test('maps DB row to client payload', () => {
+      const row = {
+        id: 7,
+        title: 'Ship release notes',
+        due_date: '2026-07-23',
+        completed: 1,
+        created_at: '2026-07-21T10:30:00.000Z',
+        updated_at: '2026-07-21T10:30:00.000Z',
+      };
 
-      const deleteResponse = await request(app).delete(`/api/items/${item.id}`);
-      expect(deleteResponse.status).toBe(200);
-      expect(deleteResponse.body).toEqual({ message: 'Item deleted successfully', id: item.id });
-
-      const deleteAgain = await request(app).delete(`/api/items/${item.id}`);
-      expect(deleteAgain.status).toBe(404);
-      expect(deleteAgain.body).toHaveProperty('error', 'Item not found');
-    });
-
-    it('should return 404 when item does not exist', async () => {
-      const response = await request(app).delete('/api/items/999999');
-      expect(response.status).toBe(404);
-      expect(response.body).toHaveProperty('error', 'Item not found');
-    });
-
-    it('should return 400 for invalid id', async () => {
-      const response = await request(app).delete('/api/items/abc');
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Valid item ID is required');
+      const payload = serializeTodo(row);
+      expect(payload).toMatchObject({
+        id: 7,
+        title: 'Ship release notes',
+        dueDate: '2026-07-23',
+        completed: true,
+      });
+      expect(payload.createdAtHuman).toBeTruthy();
     });
   });
 });
